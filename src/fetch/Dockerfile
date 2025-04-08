@@ -49,7 +49,7 @@ if [ "\$1" = "sse" ]; then
         ls -la /usr/local/bin
         exit 1
     fi
-    exec uvicorn mcp_server_fetch.sse_server:app --host 0.0.0.0 --port 3001
+    exec uvicorn mcp_server_fetch.sse_server_fixed:app --host 0.0.0.0 --port 3001
 else
     exec mcp-server-fetch "\$@"
 fi

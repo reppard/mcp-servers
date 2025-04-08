@@ -29,6 +29,9 @@ sse = SseServerTransport("/messages")
 async def handle_sse(request: Request):
     """Handle SSE connection requests."""
     async def event_generator():
+        # Send initial connection event
+        yield {"event": "connected", "data": json.dumps({"type": "connected"})}
+        
         # Create a dummy receive/send pair for the SSE connection
         async def receive():
             return {"type": "http.disconnect"}
@@ -45,6 +48,11 @@ async def handle_sse(request: Request):
         # Connect to the SSE transport
         async with sse.connect_sse(request.scope, receive, send) as streams:
             await mcp_server.run(streams[0], streams[1], mcp_server.create_initialization_options())
+            
+        # Keep the connection alive with heartbeats
+        while True:
+            yield {"event": "heartbeat", "data": json.dumps({"type": "heartbeat"})}
+            await asyncio.sleep(30)
             
     return EventSourceResponse(event_generator())
 
