@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  fetch-stdio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mcp-server-fetch:latest
+    command: stdio
+    # For stdio mode, we need to keep the container running
+    tty: true
+    stdin_open: true
+    # Add any environment variables needed
+    environment:
+      - PYTHONUNBUFFERED=1
+    # Add any volume mounts if needed for persistent data
+    volumes:
+      - ./data:/app/data
+
+  fetch-sse:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mcp-server-fetch:latest
+    command: sse
+    ports:
+      - "3001:3001"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./data:/app/data
+    # Add healthcheck for SSE mode
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s 

@@ -42,6 +42,36 @@ After installation, you can run it as a script using:
 python -m mcp_server_fetch
 ```
 
+## Server Modes
+
+The fetch server can run in two modes:
+
+### 1. Standard Mode (Default)
+
+The standard mode uses stdio for communication and is suitable for local development and CLI usage:
+
+```
+python -m mcp_server_fetch
+```
+
+### 2. SSE Mode
+
+The SSE (Server-Sent Events) mode runs a web server on port 3001 and provides both HTTP and SSE endpoints:
+
+```
+python -m mcp_server_fetch.sse_server
+```
+
+The SSE server provides two endpoints:
+- `GET /events` - SSE endpoint for real-time updates
+- `POST /messages` - Endpoint for MCP protocol messages
+
+You can also run it using uvicorn directly:
+
+```
+uvicorn mcp_server_fetch.sse_server:app --host 0.0.0.0 --port 3001
+```
+
 ## Configuration
 
 ### Configure for Claude.app
@@ -49,7 +79,7 @@ python -m mcp_server_fetch
 Add to your Claude settings:
 
 <details>
-<summary>Using uvx</summary>
+<summary>Using uvx (Standard Mode)</summary>
 
 ```json
 "mcpServers": {
@@ -62,7 +92,7 @@ Add to your Claude settings:
 </details>
 
 <details>
-<summary>Using docker</summary>
+<summary>Using docker (Standard Mode)</summary>
 
 ```json
 "mcpServers": {
@@ -75,13 +105,39 @@ Add to your Claude settings:
 </details>
 
 <details>
-<summary>Using pip installation</summary>
+<summary>Using docker (SSE Mode)</summary>
+
+```json
+"mcpServers": {
+  "fetch": {
+    "command": "docker",
+    "args": ["run", "-i", "--rm", "-p", "3001:3001", "mcp/fetch", "sse"]
+  }
+}
+```
+</details>
+
+<details>
+<summary>Using pip installation (Standard Mode)</summary>
 
 ```json
 "mcpServers": {
   "fetch": {
     "command": "python",
     "args": ["-m", "mcp_server_fetch"]
+  }
+}
+```
+</details>
+
+<details>
+<summary>Using pip installation (SSE Mode)</summary>
+
+```json
+"mcpServers": {
+  "fetch": {
+    "command": "python",
+    "args": ["-m", "mcp_server_fetch.sse_server"]
   }
 }
 ```
@@ -107,10 +163,6 @@ ModelContextProtocol/1.0 (User-Specified; +https://github.com/modelcontextprotoc
 
 This can be customized by adding the argument `--user-agent=YourUserAgent` to the `args` list in the configuration.
 
-### Customization - Proxy
-
-The server can be configured to use a proxy by using the `--proxy-url` argument.
-
 ## Debugging
 
 You can use the MCP inspector to debug the server. For uvx installations:
@@ -126,6 +178,8 @@ cd path/to/servers/src/fetch
 npx @modelcontextprotocol/inspector uv run mcp-server-fetch
 ```
 
+For the SSE server, you can use standard HTTP debugging tools or the MCP inspector with the appropriate configuration.
+
 ## Contributing
 
 We encourage contributions to help expand and improve mcp-server-fetch. Whether you want to add new tools, enhance existing functionality, or improve documentation, your input is valuable.
@@ -138,3 +192,57 @@ Pull requests are welcome! Feel free to contribute new ideas, bug fixes, or enha
 ## License
 
 mcp-server-fetch is licensed under the MIT License. This means you are free to use, modify, and distribute the software, subject to the terms and conditions of the MIT License. For more details, please see the LICENSE file in the project repository.
+
+## Running with Docker Compose
+
+The fetch server can be run using Docker Compose in either stdio or SSE mode.
+
+### Prerequisites
+
+- Docker
+- Docker Compose
+
+### Quick Start
+
+1. Clone the repository and navigate to the fetch server directory:
+```bash
+cd src/fetch
+```
+
+2. Start the server in SSE mode (recommended for most use cases):
+```bash
+docker-compose up fetch-sse
+```
+
+Or start in stdio mode:
+```bash
+docker-compose up fetch-stdio
+```
+
+### Configuration
+
+The docker-compose.yml file provides two services:
+
+- `fetch-sse`: Runs the server in SSE mode, exposing port 3001
+- `fetch-stdio`: Runs the server in stdio mode for direct integration
+
+Both services:
+- Use the same Docker image
+- Mount a `data` directory for persistence
+- Have Python output unbuffered for better logging
+
+### Environment Variables
+
+You can add environment variables to the docker-compose.yml file under the `environment` section of each service.
+
+### Health Checks
+
+The SSE mode includes a health check that pings the /health endpoint every 30 seconds.
+
+### Data Persistence
+
+Both services mount a `data` directory from the host to `/app/data` in the container. Create this directory before starting the services:
+
+```bash
+mkdir -p data
+```

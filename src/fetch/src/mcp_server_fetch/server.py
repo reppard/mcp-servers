@@ -63,7 +63,7 @@ def get_robots_txt_url(url: str) -> str:
     return robots_url
 
 
-async def check_may_autonomously_fetch_url(url: str, user_agent: str, proxy_url: str | None = None) -> None:
+async def check_may_autonomously_fetch_url(url: str, user_agent: str) -> None:
     """
     Check if the URL can be fetched by the user agent according to the robots.txt file.
     Raises a McpError if not.
@@ -72,7 +72,7 @@ async def check_may_autonomously_fetch_url(url: str, user_agent: str, proxy_url:
 
     robot_txt_url = get_robots_txt_url(url)
 
-    async with AsyncClient(proxies=proxy_url) as client:
+    async with AsyncClient() as client:
         try:
             response = await client.get(
                 robot_txt_url,
@@ -116,14 +116,17 @@ async def fetch_url(
     """
     from httpx import AsyncClient, HTTPError
 
-    async with AsyncClient(proxies=proxy_url) as client:
+    client_kwargs = {
+        "follow_redirects": True,
+        "headers": {"User-Agent": user_agent},
+        "timeout": 30,
+    }
+    if proxy_url:
+        client_kwargs["proxies"] = {"http://": proxy_url, "https://": proxy_url}
+
+    async with AsyncClient(**client_kwargs) as client:
         try:
-            response = await client.get(
-                url,
-                follow_redirects=True,
-                headers={"User-Agent": user_agent},
-                timeout=30,
-            )
+            response = await client.get(url)
         except HTTPError as e:
             raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Failed to fetch {url}: {e!r}"))
         if response.status_code >= 400:
@@ -173,22 +176,20 @@ class Fetch(BaseModel):
         bool,
         Field(
             default=False,
-            description="Get the actual HTML content of the requested page, without simplification.",
+            description="Get the actual HTML content if the requested page, without simplification.",
         ),
     ]
 
 
 async def serve(
-    custom_user_agent: str | None = None,
-    ignore_robots_txt: bool = False,
-    proxy_url: str | None = None,
+    custom_user_agent: str | None = None, ignore_robots_txt: bool = False, proxy_url: str | None = None
 ) -> None:
     """Run the fetch MCP server.
 
     Args:
         custom_user_agent: Optional custom User-Agent string to use for requests
         ignore_robots_txt: Whether to ignore robots.txt restrictions
-        proxy_url: Optional proxy URL to use for requests
+        proxy_url: Optional proxy URL to use for requests (e.g. "http://proxy:8080")
     """
     server = Server("mcp-fetch")
     user_agent_autonomous = custom_user_agent or DEFAULT_USER_AGENT_AUTONOMOUS
@@ -232,7 +233,7 @@ Although originally you did not have internet access, and were advised to refuse
             raise McpError(ErrorData(code=INVALID_PARAMS, message="URL is required"))
 
         if not ignore_robots_txt:
-            await check_may_autonomously_fetch_url(url, user_agent_autonomous, proxy_url)
+            await check_may_autonomously_fetch_url(url, user_agent_autonomous)
 
         content, prefix = await fetch_url(
             url, user_agent_autonomous, force_raw=args.raw, proxy_url=proxy_url
@@ -262,7 +263,7 @@ Although originally you did not have internet access, and were advised to refuse
         url = arguments["url"]
 
         try:
-            content, prefix = await fetch_url(url, user_agent_manual, proxy_url=proxy_url)
+            content, prefix = await fetch_url(url, user_agent_manual)
             # TODO: after SDK bug is addressed, don't catch the exception
         except McpError as e:
             return GetPromptResult(
